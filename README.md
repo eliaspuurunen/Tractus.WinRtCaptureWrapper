@@ -46,7 +46,7 @@ the capture instance `Stop()` method will be called automatically.
 
 ### Example Code
 
-```
+``` csharp
 public ObservableCollection<WindowInfo> Windows { get; } = new ObservableCollection<WindowInfo>();
 public ObservableCollection<ScreenInfo> Screens { get; } = new ObservableCollection<ScreenInfo>();
 
@@ -130,7 +130,7 @@ private void OnCaptureSessionStopped()
 
 NOTE: This code requires the NDI SDK available from https://ndi.video/download-ndi-sdk/
 
-```
+``` csharp
 using NewTek;
 using NewTek.NDI;
 using SharpDX;
