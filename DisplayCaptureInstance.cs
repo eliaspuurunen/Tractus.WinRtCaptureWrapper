@@ -1,4 +1,5 @@
-﻿using SharpDX;
+﻿using Serilog;
+using SharpDX;
 using SharpDX.Direct3D11;
 using System;
 using System.Linq;
@@ -11,7 +12,6 @@ using Windows.Graphics.DirectX;
 using Windows.Graphics.DirectX.Direct3D11;
 
 namespace Tractus.WinRtCaptureWrapper;
-
 public class DisplayCaptureInstance
 {
     public bool IsRunning { get; set; }
@@ -60,7 +60,7 @@ public class DisplayCaptureInstance
             this.d3dDevice.Dispose();
             this.device.Dispose();
 
-            if(this.frameHandler is not null)
+            if (this.frameHandler is not null)
             {
                 this.frameHandler.Dispose();
                 this.frameHandler = null;
@@ -99,6 +99,7 @@ public class DisplayCaptureInstance
     // and
     // https://github.com/microsoft/Windows.UI.Composition-Win32-Samples/issues/41
 
+
     private void Start()
     {
         if (this.window is null && this.screenInfo is null)
@@ -122,7 +123,7 @@ public class DisplayCaptureInstance
             throw new NotImplementedException("How did we get here?");
         }
 
-        if(this.item is null)
+        if (this.item is null)
         {
             this.device.Dispose();
             this.d3dDevice.Dispose();
@@ -175,7 +176,7 @@ public class DisplayCaptureInstance
 
     private void OnCaptureItemClosed(GraphicsCaptureItem sender, object args)
     {
-        if(this.item is not null)
+        if (this.item is not null)
         {
             this.item.Closed -= this.OnCaptureItemClosed;
         }
@@ -185,97 +186,113 @@ public class DisplayCaptureInstance
 
     private void OnFrameArrived(Direct3D11CaptureFramePool sender, object args)
     {
-        lock (this.threadLock)
+        try
         {
-            if (!this.IsRunning)
-            {
-                return;
-            }
 
-            var newSize = false;
-
-            using (var frame = sender.TryGetNextFrame())
+            lock (this.threadLock)
             {
-                if (frame is null)
+                if (!this.IsRunning)
                 {
-                    System.Diagnostics.Debug.WriteLine("Got a NULL frame. Bail.");
                     return;
                 }
+                var newSize = false;
 
-                if (frame.ContentSize.Width != lastSize.Width ||
-                    frame.ContentSize.Height != lastSize.Height)
+                //Log.Debug("Attempting get next frame...");
+                using (var frame = sender.TryGetNextFrame())
                 {
-                    // DO NOT RELY ON ITEM.SIZE
-                    // It is not guaranteed to be updated when the window is resized.
-
-                    // The only reliable message from item.Size is if it's 0x0
-
-                    System.Diagnostics.Debug.WriteLine(
-                        $"Frame size differs from last frame received\r\nOld: {lastSize.Width} x {lastSize.Height}\r\nNew: {frame.ContentSize.Width} x {frame.ContentSize.Height}\r\nItem Size: {this.item.Size.Width} x {this.item.Size.Height}");
-
-                    // The thing we have been capturing has changed size.
-                    // We need to resize the swap chain first, then blit the pixels.
-                    // After we do that, retire the frame and then recreate the frame pool.
-                    newSize = true;
-                    lastSize = frame.ContentSize;
-                    swapChain.ResizeBuffers(
-                        2,
-                        lastSize.Width,
-                        lastSize.Height,
-                        SharpDX.DXGI.Format.B8G8R8A8_UNorm,
-                        SharpDX.DXGI.SwapChainFlags.None);
-                }
-
-                using (var backBuffer = swapChain.GetBackBuffer<Texture2D>(0))
-                using (var bitmap = Direct3D11Helper.CreateSharpDXTexture2D(frame.Surface))
-                {
-                    d3dDevice.ImmediateContext.CopyResource(bitmap, backBuffer);
-
-                    var copy = new Texture2D(this.d3dDevice, new Texture2DDescription
+                    if (frame is null)
                     {
-                        Width = lastSize.Width,
-                        Height = lastSize.Height,
-                        MipLevels = 1,
-                        ArraySize = 1,
-                        Format = bitmap.Description.Format,
-                        Usage = ResourceUsage.Staging,
-                        SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
-                        BindFlags = BindFlags.None,
-                        CpuAccessFlags = CpuAccessFlags.Read,
-                        OptionFlags = ResourceOptionFlags.None
-                    });
-
-                    d3dDevice.ImmediateContext.CopyResource(bitmap, copy);
-
-                    var dataBox = d3dDevice.ImmediateContext.MapSubresource(copy, 0, 0, MapMode.Read, MapFlags.None,
-                       out DataStream stream);
-
-                    var rect = new DataRectangle
-                    {
-                        DataPointer = stream.DataPointer,
-                        Pitch = dataBox.RowPitch
-                    };
-
-                    if (!newSize)
-                    {
-                        this.frameHandler?.SendFrame(rect, lastSize.Width, lastSize.Height);
+                        Log.Debug("TryGetNextFrame() returned NULL.");
+                        System.Diagnostics.Debug.WriteLine("Got a NULL frame. Bail.");
+                        return;
                     }
 
-                    d3dDevice.ImmediateContext.UnmapSubresource(copy, 0);
-                    copy.Dispose();
+                    if (frame.ContentSize.Width != lastSize.Width ||
+                        frame.ContentSize.Height != lastSize.Height)
+                    {
+                        // DO NOT RELY ON ITEM.SIZE
+                        // It is not guaranteed to be updated when the window is resized.
+                        //
+                        // If we use item.Size to set the new framebuffer size, it could be wrong - and that
+                        // leads to access exceptions when we try to reference memory outside our bounds.
+
+                        // The only reliable message from item.Size is if it's 0x0
+
+                        Log.Debug(
+                            $"Frame size differs from last frame received\r\nOld: {lastSize.Width} x {lastSize.Height}\r\nNew: {frame.ContentSize.Width} x {frame.ContentSize.Height}");
+
+                        // The thing we have been capturing has changed size.
+                        // We need to resize the swap chain first, then blit the pixels.
+                        // After we do that, retire the frame and then recreate the frame pool.
+                        newSize = true;
+                        lastSize = frame.ContentSize;
+                        swapChain.ResizeBuffers(
+                            2,
+                            lastSize.Width,
+                            lastSize.Height,
+                            SharpDX.DXGI.Format.B8G8R8A8_UNorm,
+                            SharpDX.DXGI.SwapChainFlags.None);
+                    }
+
+                    using (var backBuffer = swapChain.GetBackBuffer<Texture2D>(0))
+                    using (var bitmap = Direct3D11Helper.CreateSharpDXTexture2D(frame.Surface))
+                    {
+                        //Log.Debug("Copying frame to CPU-visible buffer...");
+
+                        d3dDevice.ImmediateContext.CopyResource(bitmap, backBuffer);
+
+                        var copy = new Texture2D(this.d3dDevice, new Texture2DDescription
+                        {
+                            Width = lastSize.Width,
+                            Height = lastSize.Height,
+                            MipLevels = 1,
+                            ArraySize = 1,
+                            Format = bitmap.Description.Format,
+                            Usage = ResourceUsage.Staging,
+                            SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                            BindFlags = BindFlags.None,
+                            CpuAccessFlags = CpuAccessFlags.Read,
+                            OptionFlags = ResourceOptionFlags.None
+                        });
+
+                        d3dDevice.ImmediateContext.CopyResource(bitmap, copy);
+
+                        var dataBox = d3dDevice.ImmediateContext.MapSubresource(copy, 0, 0, MapMode.Read, MapFlags.None,
+                           out DataStream stream);
+
+                        var rect = new DataRectangle
+                        {
+                            DataPointer = stream.DataPointer,
+                            Pitch = dataBox.RowPitch
+                        };
+
+                        if (!newSize)
+                        {
+                            this.frameHandler?.SendFrame(rect, lastSize.Width, lastSize.Height);
+                        }
+
+                        d3dDevice.ImmediateContext.UnmapSubresource(copy, 0);
+                        copy.Dispose();
+                    }
+                }
+
+                swapChain.Present(0, SharpDX.DXGI.PresentFlags.None);
+
+                if (newSize)
+                {
+                    framePool.Recreate(
+                        device,
+                        DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                        2,
+                        lastSize);
                 }
             }
-
-            swapChain.Present(0, SharpDX.DXGI.PresentFlags.None);
-
-            if (newSize)
-            {
-                framePool.Recreate(
-                    device,
-                    DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                    2,
-                    lastSize);
-            }
         }
+        catch (Exception ex)
+        {
+            Log.Error("Error in OnFrameArrived: {@ex}", ex);
+            this.Stop();
+        }
+
     }
 }

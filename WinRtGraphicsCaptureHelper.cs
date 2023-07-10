@@ -13,14 +13,16 @@ public static class WinRtGraphicsCaptureHelper
 {
     public static AppCapabilityAccessStatus LastPermissionCheckResult { get; private set; }
 
+
     public static async Task<bool> RequestPermissionsAsync()
     {
+        // Requires Windows 11 22000+
         var result = await GraphicsCaptureAccess.RequestAccessAsync(
-            GraphicsCaptureAccessKind.Borderless | GraphicsCaptureAccessKind.Programmatic);
+            GraphicsCaptureAccessKind.Borderless
+            | GraphicsCaptureAccessKind.Programmatic);
 
         LastPermissionCheckResult = result;
         var toReturn = result == AppCapabilityAccessStatus.Allowed;
-
         return toReturn;
     }
 
@@ -28,7 +30,7 @@ public static class WinRtGraphicsCaptureHelper
     {
         var toReturn = new List<ScreenInfo>();
 
-        if(!await RequestPermissionsAsync())
+        if (!await RequestPermissionsAsync())
         {
             return toReturn;
         }
@@ -53,7 +55,7 @@ public static class WinRtGraphicsCaptureHelper
             toReturn.Add(toAdd);
         }
 
-        return toReturn.OrderBy(x => x.Title).ToList(); 
+        return toReturn.OrderBy(x => x.Title).ToList();
     }
 
     public static async Task<List<WindowInfo>> GetAvailableWindowsAsync()

@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
 	  <TargetFramework>net7.0-windows10.0.22000.0</TargetFramework>
 	  <Nullable>enable</Nullable>
@@ -14,6 +13,7 @@
 	  <PackageTags>winrt;windows 10;display capture</PackageTags>
   </PropertyGroup>
 	<ItemGroup>
+		<PackageReference Include="Serilog" Version="2.12.0" />
 		<PackageReference Include="SharpDX" Version="4.2.0" />
 		<PackageReference Include="SharpDX.Direct2D1" Version="4.2.0" />
 		<PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" />
