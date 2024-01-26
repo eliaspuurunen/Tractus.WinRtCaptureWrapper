@@ -19,7 +19,8 @@ public static class WinRtGraphicsCaptureHelper
         // Requires Windows 11 22000+
         var result = await GraphicsCaptureAccess.RequestAccessAsync(
             GraphicsCaptureAccessKind.Borderless
-            | GraphicsCaptureAccessKind.Programmatic);
+            //| GraphicsCaptureAccessKind.Programmatic
+            );
 
         LastPermissionCheckResult = result;
         var toReturn = result == AppCapabilityAccessStatus.Allowed;
@@ -94,7 +95,7 @@ public static class WinRtGraphicsCaptureHelper
         FrameHandler frameHandler)
     {
         var capture = new DisplayCaptureInstance();
-
+        
         try
         {
             capture.SetFrameHandler(frameHandler);
@@ -127,6 +128,25 @@ public static class WinRtGraphicsCaptureHelper
         {
             capture.Stop();
 
+            throw;
+        }
+
+        return capture;
+    }
+
+    public static DisplayCaptureInstance CreateCaptureForItem(
+        GraphicsCaptureItem item, FrameHandler ndiFrameHandler)
+    {
+        var capture = new DisplayCaptureInstance();
+
+        try
+        {
+            capture.SetFrameHandler(ndiFrameHandler);
+            capture.Start(item);
+        }
+        catch (Exception ex)
+        {
+            capture.Stop();
             throw;
         }
 

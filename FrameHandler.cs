@@ -18,14 +18,14 @@ public abstract class FrameHandler : IDisposable
 
     protected void Dispose(bool disposing)
     {
-        if (!isDisposed)
+        if (!this.isDisposed)
         {
             if (disposing)
             {
                 this.OnDisposing();
             }
 
-            isDisposed = true;
+            this.isDisposed = true;
         }
     }
 
@@ -37,7 +37,7 @@ public abstract class FrameHandler : IDisposable
     public void Dispose()
     {
         // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-        Dispose(disposing: true);
+        this.Dispose(disposing: true);
         GC.SuppressFinalize(this);
     }
 }
